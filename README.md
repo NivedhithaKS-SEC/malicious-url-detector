@@ -22,12 +22,8 @@ Analyses URLs for phishing, typosquatting, malware delivery, and 8 other threat 
 | High path entropy | Random-looking paths in malware campaigns |
 | Double extension | invoice.pdf.exe malware delivery |
 
-## Run Locally
-```bash
-pip install flask
-python app.py
-# Open http://127.0.0.1:5000
+## Live Demo : https://malicious-url-detector-azxn.onrender.com/
 ```
 
-## What to Tell Recruiters
+## About
 > "I built a URL threat analyser that runs 11 detection checks including typosquatting detection, entropy analysis, and homoglyph checks. It scores URLs from 0–100 and returns categorised findings with explanations. Built with Python and Flask."
