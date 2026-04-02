@@ -5,7 +5,7 @@
 Analyses URLs for phishing, typosquatting, malware delivery, and 8 other threat indicators. Returns a 0–100 threat score with detailed findings.
 
 ## Live Demo
-> [Add Render URL here after deployment](https://malicious-url-detector-azxn.onrender.com/)
+https://malicious-url-detector-azxn.onrender.com/
 
 ## Detection Checks (11 total)
 | Check | What It Catches |
@@ -21,8 +21,6 @@ Analyses URLs for phishing, typosquatting, malware delivery, and 8 other threat 
 | @ symbol | http://google.com@evil.com trick |
 | High path entropy | Random-looking paths in malware campaigns |
 | Double extension | invoice.pdf.exe malware delivery |
-
-## Live Demo : https://malicious-url-detector-azxn.onrender.com/
 ```
 
 ## About
