@@ -5,7 +5,7 @@
 Analyses URLs for phishing, typosquatting, malware delivery, and 8 other threat indicators. Returns a 0–100 threat score with detailed findings.
 
 ## Live Demo
-> Add Render URL here after deployment
+> [Add Render URL here after deployment](https://malicious-url-detector-azxn.onrender.com/)
 
 ## Detection Checks (11 total)
 | Check | What It Catches |
