@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Malicious URL Detector</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #111;
+  --card: #161616;
+  --border: #2a2a2a;
+  --accent: #e8ff00;
+  --critical: #ff2d2d;
+  --high: #ff7a00;
+  --medium: #ffcc00;
+  --low: #00cfff;
+  --safe: #00e676;
+  --text: #e0e0e0;
+  --muted: #666;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+}
+/* scanline overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+  pointer-events: none;
+  z-index: 999;
+}
+
+header {
+  border-bottom: 1px solid var(--border);
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+}
+.logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+.logo span { color: var(--muted); font-size: 11px; display: block; margin-top: 2px; letter-spacing: 0.06em; }
+.badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 4px 12px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 2px;
+}
+
+.main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+/* Input zone */
+.input-zone {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 28px;
+  margin-bottom: 24px;
+}
+.zone-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.url-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.url-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 12px 16px;
+  border-radius: 3px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.url-input:focus { border-color: var(--accent); }
+.url-input::placeholder { color: var(--muted); }
+.scan-btn {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 12px 24px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.scan-btn:hover { opacity: 0.85; }
+.scan-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.samples-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.samples-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+.sample-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 4px 12px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  transition: all 0.15s;
+}
+.sample-btn.phishing { color: var(--critical); border-color: rgba(255,45,45,0.3); }
+.sample-btn.phishing:hover { background: rgba(255,45,45,0.08); }
+.sample-btn.typosquat { color: var(--high); border-color: rgba(255,122,0,0.3); }
+.sample-btn.typosquat:hover { background: rgba(255,122,0,0.08); }
+.sample-btn.malware { color: var(--medium); border-color: rgba(255,204,0,0.3); }
+.sample-btn.malware:hover { background: rgba(255,204,0,0.08); }
+.sample-btn.safe { color: var(--safe); border-color: rgba(0,230,118,0.3); }
+.sample-btn.safe:hover { background: rgba(0,230,118,0.08); }
+
+/* Results */
+#results { display: none; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Verdict banner */
+.verdict-banner {
+  border-radius: 4px;
+  padding: 24px 28px;
+  margin-bottom: 20px;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.verdict-banner.critical { background: rgba(255,45,45,0.06); border-color: rgba(255,45,45,0.3); }
+.verdict-banner.warning  { background: rgba(255,122,0,0.06);  border-color: rgba(255,122,0,0.3); }
+.verdict-banner.low      { background: rgba(255,204,0,0.06);  border-color: rgba(255,204,0,0.3); }
+.verdict-banner.safe     { background: rgba(0,230,118,0.05);  border-color: rgba(0,230,118,0.25); }
+
+.verdict-score-wrap { flex-shrink: 0; text-align: center; }
+.verdict-score {
+  font-family: var(--mono);
+  font-size: 52px;
+  font-weight: 600;
+  line-height: 1;
+}
+.verdict-banner.critical .verdict-score { color: var(--critical); }
+.verdict-banner.warning  .verdict-score { color: var(--high); }
+.verdict-banner.low      .verdict-score { color: var(--medium); }
+.verdict-banner.safe     .verdict-score { color: var(--safe); }
+.score-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; margin-top: 4px; }
+
+.verdict-info { flex: 1; }
+.verdict-label {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+.verdict-banner.critical .verdict-label { color: var(--critical); }
+.verdict-banner.warning  .verdict-label { color: var(--high); }
+.verdict-banner.low      .verdict-label { color: var(--medium); }
+.verdict-banner.safe     .verdict-label { color: var(--safe); }
+.verdict-url {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+  margin-bottom: 10px;
+}
+.verdict-meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Score bar */
+.score-bar-wrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 18px 22px;
+  margin-bottom: 20px;
+}
+.score-bar-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.score-bar-track {
+  height: 6px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.score-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+  width: 0%;
+}
+.score-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+}
+
+/* Findings */
+.findings-header {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.finding-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid;
+  border-radius: 0 4px 4px 0;
+  padding: 16px 18px;
+  margin-bottom: 8px;
+}
+.finding-item.CRITICAL { border-left-color: var(--critical); }
+.finding-item.HIGH     { border-left-color: var(--high); }
+.finding-item.MEDIUM   { border-left-color: var(--medium); }
+.finding-item.LOW      { border-left-color: var(--low); }
+
+.finding-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sev {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+.sev.CRITICAL { background: rgba(255,45,45,0.15); color: var(--critical); }
+.sev.HIGH     { background: rgba(255,122,0,0.12); color: var(--high); }
+.sev.MEDIUM   { background: rgba(255,204,0,0.12); color: var(--medium); }
+.sev.LOW      { background: rgba(0,207,255,0.1);  color: var(--low); }
+
+.finding-type {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  letter-spacing: 0.05em;
+}
+.finding-indicator {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 2px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.finding-detail {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.no-findings {
+  text-align: center;
+  padding: 40px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--safe);
+  border: 1px solid rgba(0,230,118,0.2);
+  border-radius: 4px;
+  background: rgba(0,230,118,0.03);
+}
+
+.loading-row {
+  text-align: center;
+  padding: 40px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    MALICIOUS URL DETECTOR
+    <span>NIVEDHITHA KS — CYBERSECURITY PORTFOLIO</span>
+  </div>
+  <div class="badge">11 CHECKS · REAL-TIME</div>
+</header>
+
+<div class="main">
+  <div class="input-zone">
+    <div class="zone-label">Enter URL to Analyse</div>
+    <div class="url-row">
+      <input type="text" class="url-input" id="urlInput"
+             placeholder="https://example.com/path?query=value"
+             onkeydown="if(event.key==='Enter') scan()">
+      <button class="scan-btn" id="scanBtn" onclick="scan()">SCAN URL</button>
+    </div>
+    <div class="samples-row">
+      <span class="samples-label">LOAD SAMPLE:</span>
+      <button class="sample-btn phishing" onclick="loadSample('phishing')">🎣 Phishing</button>
+      <button class="sample-btn typosquat" onclick="loadSample('typosquat')">🔀 Typosquatting</button>
+      <button class="sample-btn malware" onclick="loadSample('malware')">☣ Malware dropper</button>
+      <button class="sample-btn safe" onclick="loadSample('safe')">✓ Safe URL</button>
+    </div>
+  </div>
+
+  <div id="loading" style="display:none" class="loading-row">
+    <span class="spinner"></span>SCANNING URL — RUNNING 11 DETECTION CHECKS...
+  </div>
+
+  <div id="results">
+    <div class="verdict-banner" id="verdictBanner">
+      <div class="verdict-score-wrap">
+        <div class="verdict-score" id="scoreNum">0</div>
+        <div class="score-label">THREAT SCORE</div>
+      </div>
+      <div class="verdict-info">
+        <div class="verdict-label" id="verdictLabel">—</div>
+        <div class="verdict-url" id="verdictUrl">—</div>
+        <div class="verdict-meta" id="verdictMeta"></div>
+      </div>
+    </div>
+
+    <div class="score-bar-wrap">
+      <div class="score-bar-label">THREAT SCORE — 0 (SAFE) → 100 (MALICIOUS)</div>
+      <div class="score-bar-track">
+        <div class="score-bar-fill" id="scoreBar"></div>
+      </div>
+      <div class="score-ticks">
+        <span>0 SAFE</span><span>15</span><span>40</span><span>70</span><span>100 MALICIOUS</span>
+      </div>
+    </div>
+
+    <div class="findings-header" id="findingsHeader">INDICATORS OF COMPROMISE</div>
+    <div id="findingsList"></div>
+  </div>
+</div>
+
+<script>
+let samples = {};
+
+async function loadSamples() {
+  try {
+    const r = await fetch('/api/samples');
+    samples = await r.json();
+  } catch(e) {}
+}
+
+function loadSample(type) {
+  if (samples[type]) {
+    document.getElementById('urlInput').value = samples[type];
+    scan();
+  }
+}
+
+function getBarColor(score) {
+  if (score >= 70) return '#ff2d2d';
+  if (score >= 40) return '#ff7a00';
+  if (score >= 15) return '#ffcc00';
+  return '#00e676';
+}
+
+async function scan() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('scanBtn').disabled = true;
+
+  try {
+    const r = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const d = await r.json();
+
+    if (d.error) { alert(d.error); return; }
+
+    // Verdict banner
+    const banner = document.getElementById('verdictBanner');
+    banner.className = 'verdict-banner ' + d.verdict_color;
+    document.getElementById('scoreNum').textContent = d.score;
+    document.getElementById('verdictLabel').textContent = d.verdict;
+    document.getElementById('verdictUrl').textContent = d.url;
+    document.getElementById('verdictMeta').innerHTML = `
+      <span>Domain: ${d.domain}</span>
+      <span>Findings: ${d.finding_count}</span>
+      <span>Checks: ${d.checks_performed}</span>
+      <span>Scanned: ${d.scanned_at}</span>`;
+
+    // Score bar
+    const bar = document.getElementById('scoreBar');
+    bar.style.background = getBarColor(d.score);
+    setTimeout(() => { bar.style.width = d.score + '%'; }, 100);
+
+    // Findings
+    const list = document.getElementById('findingsList');
+    document.getElementById('findingsHeader').textContent =
+      d.findings.length ? `INDICATORS DETECTED (${d.findings.length})` : 'ANALYSIS COMPLETE';
+
+    if (!d.findings.length) {
+      list.innerHTML = '<div class="no-findings">✓ No threats detected — URL appears safe</div>';
+    } else {
+      list.innerHTML = d.findings.map(f => `
+        <div class="finding-item ${f.severity}">
+          <div class="finding-top">
+            <span class="sev ${f.severity}">${f.severity}</span>
+            <span class="finding-type">${f.type.replace(/_/g,' ')}</span>
+            <span class="finding-indicator" title="${f.indicator}">${f.indicator}</span>
+          </div>
+          <div class="finding-detail">${f.detail}</div>
+        </div>`).join('');
+    }
+
+    document.getElementById('results').style.display = 'block';
+  } catch(e) {
+    alert('Scan failed. Is the Flask server running?');
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('scanBtn').disabled = false;
+  }
+}
+
+loadSamples();
+</script>
+</body>
+</html>
